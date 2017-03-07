@@ -2,9 +2,11 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.PriorityQueue;
-import java.util.Stack;
 
 public class SudokuSolver {
   private static final int CASE_NONE = 0;
@@ -14,6 +16,7 @@ public class SudokuSolver {
 
   private int[][] grid;
   private PriorityQueue<Variable> unassignedVariables;
+  private Comparator<Integer> valueComparator;
 
   private class Variable {
     int row;
@@ -48,10 +51,11 @@ public class SudokuSolver {
 
   public SudokuSolver(String line, int heuristic) {
     grid = new int[9][9];
-    Comparator<Variable> cmp = null;
+    Comparator<Variable> variableComparator = null;
     switch (heuristic) {
+      /* Variable Comparator */
       case CASE_NONE:
-        cmp = new Comparator<Variable>() {
+        variableComparator = new Comparator<Variable>() {
           @Override
           public int compare(Variable v1, Variable v2) {
             return v1.row == v2.row ? Integer.compare(v1.col, v2.col)
@@ -60,7 +64,9 @@ public class SudokuSolver {
         };
         break;
       case CASE_MRV:
-        cmp = new Comparator<Variable>() {
+      case CASE_LCV:
+      case CASE_MAC:
+        variableComparator = new Comparator<Variable>() {
           @Override
           public int compare(Variable v1, Variable v2) {
             int rv1 = 0;
@@ -75,19 +81,53 @@ public class SudokuSolver {
             }
             return Integer.compare(rv1, rv2);
           }
-
         };
+      default:
+        break;
+    }
+    switch (heuristic) {
+      /* Variable Comparator */
+      case CASE_NONE:
+      case CASE_MRV:
+        /* Default Value */
         break;
       case CASE_LCV:
-        // TODO
-        break;
       case CASE_MAC:
-        // TODO
+        valueComparator = new Comparator<Integer>() {
+          @Override
+          public int compare(Integer val1, Integer val2) {
+            int cnt1 = 0;
+            int cnt2 = 0;
+            /* Try 1st value */
+            grid[currVar.row][currVar.col] = val1;
+            for (Variable var : unassignedVariables) {
+              for (int v = 1; v <= 9; v++) {
+                if (isConsistent(var, v)) {
+                  cnt1++;
+                }
+              }
+            }
+            /* Try 2nd value */
+            grid[currVar.row][currVar.col] = val2;
+            for (Variable var : unassignedVariables) {
+              for (int v = 1; v <= 9; v++) {
+                if (isConsistent(var, v)) {
+                  cnt2++;
+                }
+              }
+            }
+            /* Restore value */
+            grid[currVar.row][currVar.col] = 0;
+            /* Compare reverse */
+            return Integer.compare(cnt2, cnt1);
+          }
+        };
         break;
       default:
         break;
     }
-    unassignedVariables = new PriorityQueue<>(cmp);
+
+    unassignedVariables = new PriorityQueue<>(variableComparator);
     for (int i = 0; i < 9; i++) {
       for (int j = 0; j < 9; j++) {
         char cval = line.charAt(9 * i + j);
@@ -100,48 +140,39 @@ public class SudokuSolver {
     }
   }
 
+  static Variable currVar;
+
   private boolean solve() {
-    // stack for assigned (var,val) pair
-    Stack<VariableValuePair> assigned = new Stack<>();
-    while (!isComplete()) {
+    if (!isComplete()) {
       // take an unassigned var
-      assigned.add(new VariableValuePair(unassignedVariables.peek(), 1));
-      boolean valid = false;
-      while (!valid) {
-        // default variable value is 0
-        VariableValuePair vvpair = assigned.pop();
-        Variable var = vvpair.var;
-        int startVal = vvpair.val;
-        for (int i = startVal; i <= 9; i++) {
-          if (isConsistent(var, i)) {
-            valid = true;
-            grid[var.row][var.col] = i;
-            unassignedVariables.remove(var);
-            assigned.push(new VariableValuePair(var, i));
-            break;
-          }
+      Variable var = unassignedVariables.poll();
+      currVar = var;
+      List<Integer> orderedValues = new ArrayList<>();
+      for (int i = 0; i < 9; i++) {
+        if (isConsistent(var, i + 1)) {
+          orderedValues.add(i + 1);
         }
-        // if no suitable value found
-        if (!valid) {
-          if (!assigned.isEmpty()) {
-            VariableValuePair top = null;
-            do {
-              // keep removing the top element
-              top = assigned.pop();
-              unassignedVariables.add(top.var);
-              grid[top.var.row][top.var.col] = 0;
-            }
-            while (!assigned.isEmpty() && top.val == 9);
-            // put next value (guaranteed top.val < 9)
-            assigned.push(new VariableValuePair(top.var, top.val + 1));
-          } else {
-            // exhausted all possibilities
-            return false;
+      }
+      Collections.sort(orderedValues, valueComparator);
+      for (int value : orderedValues) {
+        if (isConsistent(var, value)) {
+          grid[var.row][var.col] = value;
+          boolean solved = solve();
+          // check if found a solution
+          if (solved) {
+            return solved;
           }
+          // remove var = i from assignment
+          grid[var.row][var.col] = 0;
         }
-      } // end valid while
-    } // end is complete
-    return true;
+      }
+      // none of the values 1..9 worked put back this value as unassigned
+      unassignedVariables.add(var);
+      return false;
+    } else {
+      // assignment is complete
+      return true;
+    }
   }
 
   private boolean isConsistent(Variable var, int v) {
@@ -248,7 +279,7 @@ public class SudokuSolver {
     double seconds = totalTime / 1000.0;
     int minutes = (int) (seconds / 60);
     seconds -= 60 * minutes;
-    System.out.println("Took " + minutes + " minute(s) " + ((long) seconds) % 60 + " seconds.");
+    System.out.println("Took " + minutes + " minute(s) " + seconds + " seconds.");
 
     // close input and output
     in.close();
