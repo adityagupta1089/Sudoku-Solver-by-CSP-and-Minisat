@@ -47,7 +47,7 @@ public class SudokuSolver {
       int cnt1 = 0;
       int cnt2 = 0;
       /* Try 1st value */
-      grid[currVar.row][currVar.col] = val1;
+      setValue(currVar, val1);
       for (Variable var : currVar.unassignedNeighbours()) {
         for (int v : domains.get(var)) {
           if (isConsistent(var, v)) {
@@ -56,7 +56,7 @@ public class SudokuSolver {
         }
       }
       /* Try 2nd value */
-      grid[currVar.row][currVar.col] = val2;
+      setValue(currVar, val2);
       for (Variable var : currVar.unassignedNeighbours()) {
         for (int v : domains.get(var)) {
           if (isConsistent(var, v)) {
@@ -65,7 +65,7 @@ public class SudokuSolver {
         }
       }
       /* Restore value */
-      grid[currVar.row][currVar.col] = 0;
+      setValue(currVar, 0);
       /* Compare reverse */
       return Integer.compare(cnt2, cnt1);
     }
@@ -141,20 +141,20 @@ public class SudokuSolver {
       Set<Variable> neighbours = new HashSet<>();
       /* row */
       for (int j = 0; j < 9; j++) {
-        if (j != this.col && grid[this.row][j] == 0) {
+        if (j != this.col && getValue(this.row, j) == 0) {
           neighbours.add(new Variable(this.row, j));
         }
       }
       /* column */
       for (int i = 0; i < 9; i++) {
-        if (i != this.row && grid[i][this.col] == 0) {
+        if (i != this.row && getValue(i, this.col) == 0) {
           neighbours.add(new Variable(i, this.col));
         }
       }
       /* block */
       for (int i = 3 * (this.row / 3); i < 3 * (this.row / 3) + 3; i++) {
         for (int j = 3 * (this.col / 3); j < 3 * (this.col / 3) + 3; j++) {
-          if (i != this.row && j != this.col && grid[i][j] == 0) {
+          if (i != this.row && j != this.col && getValue(i, j) == 0) {
             neighbours.add(new Variable(i, j));
           }
         }
@@ -251,7 +251,7 @@ public class SudokuSolver {
 
   }
 
-  private int[][] grid;
+  private int[] grid;
 
   private PriorityQueue<Variable> unassignedVariables;
 
@@ -287,7 +287,7 @@ public class SudokuSolver {
    *          </ul>
    */
   public SudokuSolver(String line, int heuristic) {
-    grid = new int[9][9];
+    grid = new int[81];
     Comparator<Variable> variableComparator = null;
 
     /* Variable Comparator */
@@ -308,7 +308,7 @@ public class SudokuSolver {
     switch (heuristic) {
       case CASE_NONE:
       case CASE_MRV:
-        valueComparator = Integer::compare;
+        /* valueComparator = null */
         break;
       case CASE_LCV:
       case CASE_MAC:
@@ -319,15 +319,13 @@ public class SudokuSolver {
     }
     unassignedVariables = new PriorityQueue<>(variableComparator);
     /* Parse Line */
-    for (int i = 0; i < 9; i++) {
-      for (int j = 0; j < 9; j++) {
-        /* Value at each cell */
-        char cval = line.charAt(9 * i + j);
-        grid[i][j] = (cval == '.') ? 0 : (cval - '0');
-        /* if not assigned */
-        if (cval == '.') {
-          unassignedVariables.add(new Variable(i, j));
-        }
+    for (int i = 0; i < 81; i++) {
+      /* Value at each cell */
+      char cval = line.charAt(i);
+      grid[i] = (cval == '.') ? 0 : (cval - '0');
+      /* if not assigned */
+      if (cval == '.') {
+        unassignedVariables.add(new Variable(i / 9, i % 9));
       }
     }
     /* Case MAC heuristic */
@@ -343,6 +341,18 @@ public class SudokuSolver {
       }
       domains.put(var, domain);
     }
+  }
+
+  private int getValue(Variable var) {
+    return grid[var.row * 9 + var.col];
+  }
+
+  private int getValue(int row, int col) {
+    return grid[row * 9 + col];
+  }
+
+  private void setValue(Variable var, int val) {
+    grid[var.row * 9 + var.col] = val;
   }
 
   /** Returns whether the Sudoku has been solved. */
@@ -362,20 +372,20 @@ public class SudokuSolver {
   private boolean isConsistent(Variable var, int v) {
     /* row check */
     for (int j = 0; j < 9; j++) {
-      if (j != var.col && grid[var.row][j] == v) {
+      if (j != var.col && getValue(var.row, j) == v) {
         return false;
       }
     }
     /* column check */
     for (int i = 0; i < 9; i++) {
-      if (i != var.row && grid[i][var.col] == v) {
+      if (i != var.row && getValue(i, var.col) == v) {
         return false;
       }
     }
     /* block check */
     for (int i = 3 * (var.row / 3); i < 3 * (var.row / 3) + 3; i++) {
       for (int j = 3 * (var.col / 3); j < 3 * (var.col / 3) + 3; j++) {
-        if (i != var.row && j != var.col && grid[i][j] == v) {
+        if (i != var.row && j != var.col && getValue(i, j) == v) {
           return false;
         }
       }
@@ -441,7 +451,7 @@ public class SudokuSolver {
     List<Integer> toRemove = new ArrayList<>();
     for (int x : domains.get(varI)) {
       /* Temporarily assign the value x */
-      grid[varI.row][varI.col] = x;
+      setValue(varI, x);
       /* Assume no value satisfies contraints */
       boolean anySatisfy = false;
       for (int y : domains.get(varJ)) {
@@ -452,7 +462,7 @@ public class SudokuSolver {
         }
       }
       /* Restore value */
-      grid[varI.row][varI.col] = 0;
+      setValue(varI, 0);
       /* If no value in domain of var2 that satisfies for var1. */
       if (!anySatisfy) {
         toRemove.add(x);
@@ -465,43 +475,51 @@ public class SudokuSolver {
     return revised;
   }
 
+  private boolean solve() {
+    return solve(null);
+  }
+
   /**
    * Until the assignment is complete, takes a new unassigned variable according to the heuristic
    * and tries to solve using recursion with all consistent values in its domain sorted according to
    * the heuristic, putting it (the variable) back if it is unsolvable for all consistent values in
    * its domain.
    */
-  private boolean solve() {
+  private boolean solve(Variable prevVar) {
     if (!isComplete()) {
       /* Takes an unassigned variable */
       Variable var = unassignedVariables.poll();
       currVar = var;
       /* Initializes domain of variables */
-      List<Integer> orderedValues = new ArrayList<>();
-      orderedValues.addAll(domains.get(var));
+      List<Integer> orderedValues = new ArrayList<>(domains.get(var));
       /* Sorts values based on comparator decided by heuristic */
       Collections.sort(orderedValues, valueComparator);
       /* Loop over each value in domain */
       for (int value : orderedValues) {
+        /*
+         * The assignment until now was consistent so prevVar must satisfy all constraints except
+         * with this currVar, so check if they do not satify the constraints, i.e. if they are in
+         * same block, row or column and have same value
+         */
         if (isConsistent(var, value)) {
-          grid[var.row][var.col] = value;
+          setValue(var, value);
           if (caseMaintainingArcConsistency) {
             if (!maintainArcConsistency(var)) {
               return false;
             }
           }
-          boolean solved = solve();
+          boolean solved = solve(var);
           /* check if found a solution */
           if (solved) {
             return solved;
           }
           /* remove variable = i from assignment */
-          grid[var.row][var.col] = 0;
+          setValue(var, 0);
         }
       }
-      /* none of the values 1..9 worked put back this value as unassigned */
+      /* none of the values in the domain worked put back this value as unassigned */
       unassignedVariables.add(var);
-      // TODO Maybe update domains
+      // TODO Maybe update domains of its neighbours in case of MAC?
       return false;
     } else {
       /* assignment is complete */
@@ -512,10 +530,8 @@ public class SudokuSolver {
   /** Prints the Sudoku. */
   public String toSimpleString() {
     String string = "";
-    for (int i = 0; i < 9; i++) {
-      for (int j = 0; j < 9; j++) {
-        string += grid[i][j];
-      }
+    for (int i = 0; i < 81; i++) {
+      string += grid[i];
     }
     return string;
   }
@@ -532,7 +548,7 @@ public class SudokuSolver {
       string += i + "|";
       for (int j = 0; j < 9; j++) {
         /* Value in the cell */
-        string += (grid[i][j] != 0) ? grid[i][j] : ".";
+        string += (getValue(i, j) != 0) ? getValue(i, j) : ".";
         /* Box-Separator */
         if (j % 3 == 2) {
           string += "|";
