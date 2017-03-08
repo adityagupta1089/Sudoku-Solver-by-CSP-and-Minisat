@@ -3,6 +3,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -189,7 +190,7 @@ public class SudokuSolver {
   /* The last assigned variable */
   private static Variable currVar;
 
-  private static Map<Variable, Set<Integer>> domains;
+  private static Map<Variable, List<Integer>> domains;
 
   /**
    * This does the following:
@@ -232,10 +233,12 @@ public class SudokuSolver {
     /* reading file and solving, then printing it */
     String line = null;
 
+    SudokuSolver.setHeuristic(heuristic);
+
     long t0 = System.currentTimeMillis();
 
     while ((line = in.readLine()) != null) {
-      SudokuSolver sudoku = new SudokuSolver(line, heuristic);
+      SudokuSolver sudoku = new SudokuSolver(line);
       boolean solved = sudoku.solve();
       if (!solved) {
         System.out.println("Could not solve: " + line);
@@ -243,7 +246,11 @@ public class SudokuSolver {
       }
       fw.write(sudoku.toSimpleString() + "\n");
     }
-    System.out.println((double) (System.currentTimeMillis() - t0) / 1000);
+
+    double sec = (double) (System.currentTimeMillis() - t0) / 1000;
+    int min = (int) (sec / 60);
+    sec -= 60 * min;
+    System.out.println("Took " + min + " minute(s) and " + sec + " second(s).");
 
     /* close input and output */
     in.close();
@@ -255,22 +262,14 @@ public class SudokuSolver {
 
   private PriorityQueue<Variable> unassignedVariables;
 
-  private Comparator<Integer> valueComparator;
+  private static Comparator<Integer> valueComparator;
+  private static Comparator<Variable> variableComparator;
 
-  private boolean caseMaintainingArcConsistency = false;
+  private static boolean caseMaintainingArcConsistency = false;
+  private static boolean caseReorderValues = false;
+  private static int heuristic;
 
   /**
-   * Parses the input line.
-   * <ul>
-   * <li>Creates a 2-dimensional integer grid from the input line.</li>
-   * <li>Selects appropriate comparators corresponding to the heuristic.</li>
-   * <li>Populates unassigned variables</li>
-   * <li>Initialize domains</li>
-   * </ul>
-   * 
-   * @param line
-   *          corresponds to a single puzzle. The puzzles are all rasterised row-wise. Empty squares
-   *          in the puzzle are represented as ‘.’
    * @param heuristic
    *          The heuristic to be used:
    *          <ul>
@@ -286,9 +285,33 @@ public class SudokuSolver {
    *          failure.</li>
    *          </ul>
    */
-  public SudokuSolver(String line, int heuristic) {
+  private static void setHeuristic(int pheuristic) {
+
+    heuristic = pheuristic;
+
+    /* Case MAC heuristic */
+    caseMaintainingArcConsistency = (heuristic == CASE_MAC);
+
+    /* Case MRV */
+    caseReorderValues = (heuristic == CASE_MRV);
+  }
+
+  /**
+   * Parses the input line.
+   * <ul>
+   * <li>Creates a 2-dimensional integer grid from the input line.</li>
+   * <li>Selects appropriate comparators corresponding to the heuristic.</li>
+   * <li>Populates unassigned variables</li>
+   * <li>Initialize domains</li>
+   * </ul>
+   * 
+   * @param line
+   *          corresponds to a single puzzle. The puzzles are all rasterised row-wise. Empty squares
+   *          in the puzzle are represented as ‘.’
+   * 
+   */
+  public SudokuSolver(String line) {
     grid = new int[81];
-    Comparator<Variable> variableComparator = null;
 
     /* Variable Comparator */
     switch (heuristic) {
@@ -317,6 +340,10 @@ public class SudokuSolver {
       default:
         break;
     }
+
+    /* Initialize domains */
+    domains = new HashMap<>();
+
     unassignedVariables = new PriorityQueue<>(variableComparator);
     /* Parse Line */
     for (int i = 0; i < 81; i++) {
@@ -325,21 +352,18 @@ public class SudokuSolver {
       grid[i] = (cval == '.') ? 0 : (cval - '0');
       /* if not assigned */
       if (cval == '.') {
-        unassignedVariables.add(new Variable(i / 9, i % 9));
+        Variable var = new Variable(i / 9, i % 9);
+        domains.put(var, new ArrayList<>());
+        unassignedVariables.add(var);
       }
     }
-    /* Case MAC heuristic */
-    caseMaintainingArcConsistency = (heuristic == 3);
-    /* Initialize domains */
-    domains = new HashMap<>();
+
     for (Variable var : unassignedVariables) {
-      Set<Integer> domain = new HashSet<>();
       for (int i = 1; i <= 9; i++) {
         if (isConsistent(var, i)) {
-          domain.add(i);
+          domains.get(var).add(i);
         }
       }
-      domains.put(var, domain);
     }
   }
 
@@ -487,15 +511,18 @@ public class SudokuSolver {
    */
   private boolean solve(Variable prevVar) {
     if (!isComplete()) {
+
       /* Takes an unassigned variable */
       Variable var = unassignedVariables.poll();
       currVar = var;
-      /* Initializes domain of variables */
-      List<Integer> orderedValues = new ArrayList<>(domains.get(var));
-      /* Sorts values based on comparator decided by heuristic */
-      Collections.sort(orderedValues, valueComparator);
+
+      if (caseReorderValues) {
+        /* Sorts values based on comparator decided by heuristic */
+        Collections.sort(domains.get(var), valueComparator);
+      }
+
       /* Loop over each value in domain */
-      for (int value : orderedValues) {
+      for (int value : domains.get(var)) {
         /*
          * The assignment until now was consistent so prevVar must satisfy all constraints except
          * with this currVar, so check if they do not satify the constraints, i.e. if they are in
@@ -509,14 +536,17 @@ public class SudokuSolver {
             }
           }
           boolean solved = solve(var);
+
           /* check if found a solution */
           if (solved) {
             return solved;
           }
+
           /* remove variable = i from assignment */
           setValue(var, 0);
         }
       }
+
       /* none of the values in the domain worked put back this value as unassigned */
       unassignedVariables.add(var);
       // TODO Maybe update domains of its neighbours in case of MAC?
