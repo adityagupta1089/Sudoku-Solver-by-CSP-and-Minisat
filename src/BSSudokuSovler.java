@@ -6,32 +6,35 @@ public class BSSudokuSovler extends SudokuSolver {
 
   public BSSudokuSovler(final String line) {
     super(line);
-    unassignedVariables = new LinkedList<>(super.unassignedVariables);
+    this.unassignedVariables = new LinkedList<>(super.unassignedVariables);
   }
 
   @Override
   public boolean solve() {
-    if (!isComplete()) {
-      final Variable var = unassignedVariables.removeFirst();
-      for (int value = 1; value <= 9; value++)
-        if (isConsistent(var, value)) {
-          setValue(var, value);
-          final boolean solved = solve();
-          if (solved)
+    if (!this.isComplete()) {
+      final Variable var = this.unassignedVariables.removeFirst();
+      for (int value = 1; value <= 9; value++) {
+        if (this.isConsistent(var, value)) {
+          this.setValue(var, value);
+          final boolean solved = this.solve();
+          if (solved) {
             return solved;
-          setValue(var, 0);
+          }
+          this.setValue(var, 0);
         }
+      }
       /* none of the values in the domain worked put back this value as unassigned */
-      unassignedVariables.addFirst(var);
+      this.unassignedVariables.addFirst(var);
       backTracks++;
       return false;
-    } else
+    } else {
       return true;
+    }
   }
 
   @Override
   public boolean isComplete() {
-    return unassignedVariables.size() == 0;
+    return this.unassignedVariables.size() == 0;
   }
 
 }

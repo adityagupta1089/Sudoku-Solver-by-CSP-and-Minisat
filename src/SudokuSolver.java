@@ -21,15 +21,16 @@ public abstract class SudokuSolver {
     public int col;
 
     public Variable(final int prow, final int pcol) {
-      row = prow;
-      col = pcol;
+      this.row = prow;
+      this.col = pcol;
     }
 
     @Override
     public boolean equals(final Object obj) {
       final Variable other = (Variable) obj;
-      if (col != other.col || row != other.row)
+      if ((this.col != other.col) || (this.row != other.row)) {
         return false;
+      }
       return true;
     }
 
@@ -37,14 +38,14 @@ public abstract class SudokuSolver {
     public int hashCode() {
       final int prime = 31;
       int result = 1;
-      result = prime * result + col;
-      result = prime * result + row;
+      result = (prime * result) + this.col;
+      result = (prime * result) + this.row;
       return result;
     }
 
     @Override
     public String toString() {
-      return "(" + row + ", " + col + ")";
+      return "(" + this.row + ", " + this.col + ")";
     }
 
   }
@@ -55,13 +56,13 @@ public abstract class SudokuSolver {
     public Variable var2;
 
     public VariablesPair(final Variable v1, final Variable v2) {
-      var1 = v1;
-      var2 = v2;
+      this.var1 = v1;
+      this.var2 = v2;
     }
 
     @Override
     public String toString() {
-      return "(" + var1 + ", " + var2 + ")";
+      return "(" + this.var1 + ", " + this.var2 + ")";
     }
 
   }
@@ -102,7 +103,7 @@ public abstract class SudokuSolver {
   public static void main(final String[] args) throws IOException {
     /* arguments check */
     int heuristic = -1;
-    if (args.length < 3 || (heuristic = Integer.parseInt(args[2])) < 0 || heuristic > 3) {
+    if ((args.length < 3) || ((heuristic = Integer.parseInt(args[2])) < 0) || (heuristic > 3)) {
       System.out.println("There should be three input arguments in the format:\n"
           + "\t<input file> <output file> <heuristic id>");
       System.out.println("\tHeuristic id: " + CASE_NONE + ". None, " + CASE_MINIMUM_REMAINING_VALUE
@@ -118,7 +119,9 @@ public abstract class SudokuSolver {
     /* reading file and solving, then printing it */
     String line = null;
 
+    /* Time and Memory */
     final long t0 = System.currentTimeMillis();
+
     while ((line = in.readLine()) != null) {
       SudokuSolver solver = null;
       /* Select Solver */
@@ -143,8 +146,6 @@ public abstract class SudokuSolver {
         break;
       }
       fw.write(solver.solution() + "\n");
-      // TODO: Remove after debug
-      // System.out.println(solver.solution());
     }
 
     /* Time Calculation */
@@ -152,13 +153,24 @@ public abstract class SudokuSolver {
     final int min = (int) (sec / 60);
     sec -= 60 * min;
     System.out.println("Took " + min + " minute(s) and " + sec + " second(s).");
+    /* Backtracks */
     System.out.println(
-        "Total back-tracks: " + NumberFormat.getNumberInstance(Locale.US).format(backTracks) + ".");
+        "Total backtracks: " + NumberFormat.getNumberInstance(Locale.US).format(backTracks) + ".");
+    /* Memory Usage */
 
     /* close input and output */
     in.close();
     fw.close();
 
+  }
+
+  public static String humanReadableByteCount(long bytes, boolean si) {
+    int unit = si ? 1000 : 1024;
+    if (bytes < unit)
+      return bytes + " B";
+    int exp = (int) (Math.log(bytes) / Math.log(unit));
+    String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
+    return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
   }
 
   // ================================================================================
@@ -179,19 +191,19 @@ public abstract class SudokuSolver {
    *
    */
   public SudokuSolver(final String line) {
-    grid = new int[81];
+    this.grid = new int[81];
 
-    unassignedVariables = new LinkedList<>();
+    this.unassignedVariables = new LinkedList<>();
 
     /* Parse Line */
     for (int i = 0; i < 81; i++) {
       /* Value at each cell */
       final char cval = line.charAt(i);
-      grid[i] = cval == '.' ? 0 : cval - '0';
+      this.grid[i] = cval == '.' ? 0 : cval - '0';
       /* if not assigned */
       if (cval == '.') {
         final Variable var = new Variable(i / 9, i % 9);
-        unassignedVariables.add(var);
+        this.unassignedVariables.add(var);
       }
     }
   }
@@ -215,35 +227,42 @@ public abstract class SudokuSolver {
    */
   public boolean isConsistent(final Variable var, final int v) {
     /* row check */
-    for (int j = 0; j < 9; j++)
-      if (j != var.col && getValue(var.row, j) == v)
+    for (int j = 0; j < 9; j++) {
+      if ((j != var.col) && (this.getValue(var.row, j) == v)) {
         return false;
+      }
+    }
     /* column check */
-    for (int i = 0; i < 9; i++)
-      if (i != var.row && getValue(i, var.col) == v)
+    for (int i = 0; i < 9; i++) {
+      if ((i != var.row) && (this.getValue(i, var.col) == v)) {
         return false;
+      }
+    }
     /* block check */
-    for (int i = 3 * (var.row / 3); i < 3 * (var.row / 3) + 3; i++)
-      for (int j = 3 * (var.col / 3); j < 3 * (var.col / 3) + 3; j++)
-        if ((i != var.row || j != var.col) && getValue(i, j) == v)
+    for (int i = 3 * (var.row / 3); i < ((3 * (var.row / 3)) + 3); i++) {
+      for (int j = 3 * (var.col / 3); j < ((3 * (var.col / 3)) + 3); j++) {
+        if (((i != var.row) || (j != var.col)) && (this.getValue(i, j) == v)) {
           return false;
+        }
+      }
+    }
     return true;
   }
 
   public boolean isRelated(final Variable var, final Variable var2) {
-    return !var.equals(var2) && (var.row == var2.row || var.col == var2.col
-        || var.row / 3 == var2.row / 3 && var.col / 3 == var2.col / 3);
+    return !var.equals(var2) && ((var.row == var2.row) || (var.col == var2.col)
+        || (((var.row / 3) == (var2.row / 3)) && ((var.col / 3) == (var2.col / 3))));
   }
 
   public void setValue(final Variable var, final int val) {
-    grid[var.row * 9 + var.col] = val;
+    this.grid[(var.row * 9) + var.col] = val;
   }
 
   // ================================================================================
   // Other Helper Methods
   // ================================================================================
   public int getValue(final int row, final int col) {
-    return grid[row * 9 + col];
+    return this.grid[(row * 9) + col];
   }
 
   // ================================================================================
@@ -251,8 +270,9 @@ public abstract class SudokuSolver {
   // ================================================================================
   public String solution() {
     String string = "";
-    for (int i = 0; i < 81; i++)
-      string += grid[i];
+    for (int i = 0; i < 81; i++) {
+      string += this.grid[i];
+    }
     return string;
   }
 
@@ -268,14 +288,16 @@ public abstract class SudokuSolver {
       string += i + "|";
       for (int j = 0; j < 9; j++) {
         /* Value in the cell */
-        string += getValue(i, j) != 0 ? getValue(i, j) : ".";
+        string += this.getValue(i, j) != 0 ? this.getValue(i, j) : ".";
         /* Box-Separator */
-        if (j % 3 == 2)
+        if ((j % 3) == 2) {
           string += "|";
+        }
       }
       /* Box-Separator */
-      if (i % 3 == 2)
+      if ((i % 3) == 2) {
         string += "\n +---+---+---+";
+      }
       /* Next row */
       string += "\n";
     }

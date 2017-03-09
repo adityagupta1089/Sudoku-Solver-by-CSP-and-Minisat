@@ -8,3 +8,7 @@ BSII (MRV+LCV):
 	Took 0 minute(s) and 14.329 second(s).
 	Total back-tracks: 364,783.
 BSMAC (MRV+LCV+MAC):
+	Took 0 minute(s) and 21.809 second(s).
+	Total backtracks: 159,498.
+	Memory Usage: 37.8 MB
+
