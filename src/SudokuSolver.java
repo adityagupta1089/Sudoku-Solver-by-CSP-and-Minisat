@@ -2,14 +2,14 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
@@ -47,21 +47,26 @@ public class SudokuSolver {
     public int compare(Integer val1, Integer val2) {
       int cnt1 = 0;
       int cnt2 = 0;
+      // TODO try cmbining them
       /* Try 1st value */
       setValue(currVar, val1);
-      for (Variable var : currVar.unassignedNeighbours()) {
-        for (int v : domains.get(var)) {
-          if (isConsistent(var, v)) {
-            cnt1++;
+      for (Variable var : unassignedVariables) {
+        if (isRelated(var, currVar)) {
+          for (int v : domains.get(var)) {
+            if (isConsistent(var, v)) {
+              cnt1++;
+            }
           }
         }
       }
       /* Try 2nd value */
       setValue(currVar, val2);
-      for (Variable var : currVar.unassignedNeighbours()) {
-        for (int v : domains.get(var)) {
-          if (isConsistent(var, v)) {
-            cnt2++;
+      for (Variable var : unassignedVariables) {
+        if (isRelated(var, currVar)) {
+          for (int v : domains.get(var)) {
+            if (isConsistent(var, v)) {
+              cnt2++;
+            }
           }
         }
       }
@@ -70,6 +75,7 @@ public class SudokuSolver {
       /* Compare reverse */
       return Integer.compare(cnt2, cnt1);
     }
+
   }
 
   /**
@@ -137,32 +143,6 @@ public class SudokuSolver {
       return "(" + row + ", " + col + ")";
     }
 
-    /** Returns a list of unassigned Neighbours, i.e. which can't have same value as this. */
-    public Set<Variable> unassignedNeighbours() {
-      Set<Variable> neighbours = new HashSet<>();
-      /* row */
-      for (int j = 0; j < 9; j++) {
-        if (j != this.col && getValue(this.row, j) == 0) {
-          neighbours.add(new Variable(this.row, j));
-        }
-      }
-      /* column */
-      for (int i = 0; i < 9; i++) {
-        if (i != this.row && getValue(i, this.col) == 0) {
-          neighbours.add(new Variable(i, this.col));
-        }
-      }
-      /* block */
-      for (int i = 3 * (this.row / 3); i < 3 * (this.row / 3) + 3; i++) {
-        for (int j = 3 * (this.col / 3); j < 3 * (this.col / 3) + 3; j++) {
-          if (i != this.row && j != this.col && getValue(i, j) == 0) {
-            neighbours.add(new Variable(i, j));
-          }
-        }
-      }
-      return neighbours;
-    }
-
   }
 
   /** A Pair of Variables. */
@@ -182,15 +162,21 @@ public class SudokuSolver {
 
   }
 
-  private static final int CASE_NONE = 0;
-  private static final int CASE_MRV = 1;
-  private static final int CASE_LCV = 2;
-  private static final int CASE_MAC = 3;
+  private static final int CASE_NONE = 0; /* None */
+  private static final int CASE_MINIMUM_REMAINING_VALUE = 1; /* Minimum Remaining Value */
+  private static final int CASE_LEAST_CONSTRAINING_VALUE = 2; /* Least Constraining Value */
+  private static final int CASE_MAINTAINING_ARC_CONSISTENCY = 3; /* Maintaining Arc Consistency */
 
   /* The last assigned variable */
   private static Variable currVar;
 
   private static Map<Variable, List<Integer>> domains;
+
+  private static boolean caseMaintainingArcConsistency = false;
+
+  private static boolean caseReorderValues = false;
+
+  private static int heuristic;
 
   /**
    * This does the following:
@@ -199,19 +185,8 @@ public class SudokuSolver {
    * <li>Reads the files and for each line, solves it and prints it to the output file</li>
    * </ul>
    * 
-   * @param args
-   *          <ul>
-   *          <li>Input File</li>
-   *          <li>Output File</li>
-   *          <li>Heuristic Id
-   *          <ul>
-   *          <li>0: None</li>
-   *          <li>1: MRV</li>
-   *          <li>2: MRV+LCV</li>
-   *          <li>3: MRV+LCV+MAC</li>
-   *          </ul>
-   *          </li>
-   *          </ul>
+   * @param argsInput
+   *          File, Output File, Heuristic Id (0: None, 1: MRV, 2: MRV+LCV, 3: MRV+LCV+MAC)
    * @throws IOException
    *           if input-output file could not be opened or closed.
    */
@@ -221,8 +196,9 @@ public class SudokuSolver {
     if (args.length < 3 || (heuristic = Integer.parseInt(args[2])) < 0 || heuristic > 3) {
       System.out.println("There should be three input arguments in the format:\n"
           + "\t<input file> <output file> <heuristic id>");
-      System.out.println("\tHeuristic id: " + CASE_NONE + ". None, " + CASE_MRV + ". MRV, "
-          + CASE_LCV + ". MRV+LCV, " + CASE_MAC + ". MRV+LCV+MAC");
+      System.out.println("\tHeuristic id: " + CASE_NONE + ". None, " + CASE_MINIMUM_REMAINING_VALUE
+          + ". MRV, " + CASE_LEAST_CONSTRAINING_VALUE + ". MRV+LCV, "
+          + CASE_MAINTAINING_ARC_CONSISTENCY + ". MRV+LCV+MAC");
       return;
     }
 
@@ -236,7 +212,6 @@ public class SudokuSolver {
     SudokuSolver.setHeuristic(heuristic);
 
     long t0 = System.currentTimeMillis();
-
     while ((line = in.readLine()) != null) {
       SudokuSolver sudoku = new SudokuSolver(line);
       boolean solved = sudoku.solve();
@@ -251,23 +226,14 @@ public class SudokuSolver {
     int min = (int) (sec / 60);
     sec -= 60 * min;
     System.out.println("Took " + min + " minute(s) and " + sec + " second(s).");
+    System.out.println(
+        "Total back-tracks: " + NumberFormat.getNumberInstance(Locale.US).format(backTracks) + ".");
 
     /* close input and output */
     in.close();
     fw.close();
 
   }
-
-  private int[] grid;
-
-  private PriorityQueue<Variable> unassignedVariables;
-
-  private static Comparator<Integer> valueComparator;
-  private static Comparator<Variable> variableComparator;
-
-  private static boolean caseMaintainingArcConsistency = false;
-  private static boolean caseReorderValues = false;
-  private static int heuristic;
 
   /**
    * @param heuristic
@@ -290,11 +256,17 @@ public class SudokuSolver {
     heuristic = pheuristic;
 
     /* Case MAC heuristic */
-    caseMaintainingArcConsistency = (heuristic == CASE_MAC);
+    caseMaintainingArcConsistency = (heuristic >= CASE_MAINTAINING_ARC_CONSISTENCY);
 
-    /* Case MRV */
-    caseReorderValues = (heuristic == CASE_MRV);
+    /* Case LCV */
+    caseReorderValues = (heuristic >= CASE_LEAST_CONSTRAINING_VALUE);
   }
+
+  private int[] grid;
+
+  private PriorityQueue<Variable> unassignedVariables;
+  private Comparator<Integer> valueComparator;
+  private Comparator<Variable> variableComparator;
 
   /**
    * Parses the input line.
@@ -318,9 +290,9 @@ public class SudokuSolver {
       case CASE_NONE:
         variableComparator = new DefaultValueComparator();
         break;
-      case CASE_MRV:
-      case CASE_LCV:
-      case CASE_MAC:
+      case CASE_MINIMUM_REMAINING_VALUE:
+      case CASE_LEAST_CONSTRAINING_VALUE:
+      case CASE_MAINTAINING_ARC_CONSISTENCY:
         variableComparator = new MinmumRemainingValueComparator();
         break;
       default:
@@ -330,11 +302,11 @@ public class SudokuSolver {
     /* Variable Comparator */
     switch (heuristic) {
       case CASE_NONE:
-      case CASE_MRV:
-        /* valueComparator = null */
+      case CASE_MINIMUM_REMAINING_VALUE:
+        valueComparator = null;
         break;
-      case CASE_LCV:
-      case CASE_MAC:
+      case CASE_LEAST_CONSTRAINING_VALUE:
+      case CASE_MAINTAINING_ARC_CONSISTENCY:
         valueComparator = new LeastConstrainingValueCompartaor();
         break;
       default:
@@ -367,17 +339,13 @@ public class SudokuSolver {
     }
   }
 
-  private int getValue(Variable var) {
-    return grid[var.row * 9 + var.col];
-  }
-
   private int getValue(int row, int col) {
     return grid[row * 9 + col];
   }
 
-  private void setValue(Variable var, int val) {
-    grid[var.row * 9 + var.col] = val;
-  }
+  /*
+   * private int getValue(Variable var) { return grid[var.row * 9 + var.col]; }
+   */
 
   /** Returns whether the Sudoku has been solved. */
   private boolean isComplete() {
@@ -409,12 +377,17 @@ public class SudokuSolver {
     /* block check */
     for (int i = 3 * (var.row / 3); i < 3 * (var.row / 3) + 3; i++) {
       for (int j = 3 * (var.col / 3); j < 3 * (var.col / 3) + 3; j++) {
-        if (i != var.row && j != var.col && getValue(i, j) == v) {
+        if ((i != var.row || j != var.col) && getValue(i, j) == v) {
           return false;
         }
       }
     }
     return true;
+  }
+
+  private boolean isRelated(Variable var, Variable var2) {
+    return !var.equals(var2) && (var.row == var2.row || var.col == var2.col
+        || (var.row / 3 == var2.row / 3 && var.col / 3 == var2.col / 3));
   }
 
   /**
@@ -430,8 +403,10 @@ public class SudokuSolver {
     Map<Variable, Set<Integer>> domains = new HashMap<>();
 
     /* Add all arcs containing "var",i.e. (varNeighbour, var) */
-    for (Variable varJ : varI.unassignedNeighbours()) {
-      arcs.add(new VariablesPair(varJ, varI));
+    for (Variable varJ : unassignedVariables) {
+      if (isRelated(varJ, varI)) {
+        arcs.add(new VariablesPair(varJ, varI));
+      }
     }
 
     /* Proceed with AC-3 */
@@ -441,10 +416,12 @@ public class SudokuSolver {
       /* Check if pair.val1, i.e. varNeightbour is arc consistent with pair.val2, i.e. var */
       if (reviseDomains(pair.var1, pair.var2)) {
         /* Revised some domains */
-        for (Variable varK : varI.unassignedNeighbours()) {
-          if (!varK.equals(pair.var2)) {
-            /* Add arcs that have related variables */
-            arcs.add(new VariablesPair(varK, pair.var1));
+        for (Variable varK : unassignedVariables) {
+          if (isRelated(varK, varI)) {
+            if (!varK.equals(pair.var2)) {
+              /* Add arcs that have related variables */
+              arcs.add(new VariablesPair(varK, pair.var1));
+            }
           }
         }
       }
@@ -499,9 +476,16 @@ public class SudokuSolver {
     return revised;
   }
 
+  private void setValue(Variable var, int val) {
+    grid[var.row * 9 + var.col] = val;
+  }
+
   private boolean solve() {
     return solve(null);
   }
+
+  private static long backTracks = 0;
+  private static int max = 0;
 
   /**
    * Until the assignment is complete, takes a new unassigned variable according to the heuristic
@@ -515,23 +499,25 @@ public class SudokuSolver {
       /* Takes an unassigned variable */
       Variable var = unassignedVariables.poll();
       currVar = var;
+      if (max < 100) {
+        System.out.println(max + "->" + var);
+        max++;
+      }
+
+      List<Integer> orderedValues = domains.get(var);
 
       if (caseReorderValues) {
         /* Sorts values based on comparator decided by heuristic */
-        Collections.sort(domains.get(var), valueComparator);
+        Collections.sort(orderedValues, valueComparator);
       }
 
       /* Loop over each value in domain */
-      for (int value : domains.get(var)) {
-        /*
-         * The assignment until now was consistent so prevVar must satisfy all constraints except
-         * with this currVar, so check if they do not satify the constraints, i.e. if they are in
-         * same block, row or column and have same value
-         */
+      for (int value : orderedValues) {
         if (isConsistent(var, value)) {
           setValue(var, value);
           if (caseMaintainingArcConsistency) {
             if (!maintainArcConsistency(var)) {
+              backTracks++;
               return false;
             }
           }
@@ -541,15 +527,15 @@ public class SudokuSolver {
           if (solved) {
             return solved;
           }
-
-          /* remove variable = i from assignment */
-          setValue(var, 0);
         }
       }
 
+      /* remove variable = i from assignment */
+      setValue(var, 0);
       /* none of the values in the domain worked put back this value as unassigned */
       unassignedVariables.add(var);
       // TODO Maybe update domains of its neighbours in case of MAC?
+      backTracks++;
       return false;
     } else {
       /* assignment is complete */
@@ -557,7 +543,6 @@ public class SudokuSolver {
     }
   }
 
-  /** Prints the Sudoku. */
   public String toSimpleString() {
     String string = "";
     for (int i = 0; i < 81; i++) {
