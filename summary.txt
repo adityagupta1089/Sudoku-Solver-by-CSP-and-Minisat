@@ -1,0 +1,10 @@
+BS:
+	Took 0 minute(s) and 40.244 second(s).
+	Total back-tracks: 227,502,770.
+BSI (MRV):
+	Took 0 minute(s) and 13.097 second(s).
+	Total back-tracks: 370,626.
+BSII (MRV+LCV):
+	Took 0 minute(s) and 14.329 second(s).
+	Total back-tracks: 364,783.
+BSMAC (MRV+LCV+MAC):
