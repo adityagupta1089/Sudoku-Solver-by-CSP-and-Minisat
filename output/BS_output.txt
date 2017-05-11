@@ -1,0 +1,25 @@
+Profiler Agent: Waiting for connection on port 5140 (Protocol version: 15)
+Profiler Agent: Established connection with the tool
+Profiler Agent: Local accelerated session
+Profiler Agent: Connection with agent closed
+Took 7 minute(s) and 34.036 second(s).
+Total backtracks: 227,502,770.
+Profiler Agent: Initializing...
+Profiler Agent: Options: >/usr/share/visualvm/profiler/lib,5140<
+Profiler Agent: Initialized successfully
+Profiler Agent: Redefining 100 classes at idx 0, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 100, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 200, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 300, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 400, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 0, out of total 159 
+Profiler Agent: Redefining 59 classes at idx 100, out of total 159 
+Profiler Agent: Redefining 100 classes at idx 0, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 100, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 200, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 300, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 400, out of total 500 
+Profiler Agent: Redefining 100 classes at idx 0, out of total 301 
+Profiler Agent: Redefining 100 classes at idx 100, out of total 301 
+Profiler Agent: Redefining 100 classes at idx 200, out of total 301 
+Profiler Agent: Redefining 1 classes at idx 300, out of total 301 

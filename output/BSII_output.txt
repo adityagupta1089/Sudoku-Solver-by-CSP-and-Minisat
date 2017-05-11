@@ -1,0 +1,2 @@
+Took 0 minute(s) and 13.04 second(s).
+Total backtracks: 370,626.
