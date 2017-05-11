@@ -95,8 +95,8 @@ public abstract class SudokuSolver {
    * <li>Reads the files and for each line, solves it and prints it to the output file</li>
    * </ul>
    *
-   * @param argsInput
-   *          File, Output File, Heuristic Id (0: None, 1: MRV, 2: MRV+LCV, 3: MRV+LCV+MAC)
+   * @param args
+   *          Input File, Output File, Heuristic Id (0: None, 1: MRV, 2: MRV+LCV, 3: MRV+LCV+MAC)
    * @throws IOException
    *           if input-output file could not be opened or closed.
    */
@@ -119,7 +119,7 @@ public abstract class SudokuSolver {
     /* reading file and solving, then printing it */
     String line = null;
 
-    /* Time and Memory */
+    /* Time */
     final long t0 = System.currentTimeMillis();
 
     while ((line = in.readLine()) != null) {
@@ -137,6 +137,8 @@ public abstract class SudokuSolver {
           break;
         case CASE_MAINTAINING_ARC_CONSISTENCY:
           solver = new BSMACSudokuSolver(line);
+          break;
+        default:
           break;
       }
       /* Solve */
@@ -162,15 +164,6 @@ public abstract class SudokuSolver {
     in.close();
     fw.close();
 
-  }
-
-  public static String humanReadableByteCount(long bytes, boolean si) {
-    int unit = si ? 1000 : 1024;
-    if (bytes < unit)
-      return bytes + " B";
-    int exp = (int) (Math.log(bytes) / Math.log(unit));
-    String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
-    return String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre);
   }
 
   // ================================================================================
@@ -211,9 +204,12 @@ public abstract class SudokuSolver {
   // Solve
   // ================================================================================
 
-  /** Children classes override this method and solve the sudoku */
+  /** Children classes override this method and solve the sudoku. */
   public abstract boolean solve();
 
+  // ================================================================================
+  // Other Helper Methods
+  // ================================================================================
   /** Returns whether the Sudoku has been solved. */
   public abstract boolean isComplete();
 
@@ -222,26 +218,26 @@ public abstract class SudokuSolver {
    *
    * @param var
    *          is the given variable.
-   * @param v
+   * @param value
    *          is the value to check for.
    */
-  public boolean isConsistent(final Variable var, final int v) {
+  public boolean isConsistent(final Variable var, final int value) {
     /* row check */
     for (int j = 0; j < 9; j++) {
-      if ((j != var.col) && (this.getValue(var.row, j) == v)) {
+      if ((j != var.col) && (this.getValue(var.row, j) == value)) {
         return false;
       }
     }
     /* column check */
     for (int i = 0; i < 9; i++) {
-      if ((i != var.row) && (this.getValue(i, var.col) == v)) {
+      if ((i != var.row) && (this.getValue(i, var.col) == value)) {
         return false;
       }
     }
     /* block check */
     for (int i = 3 * (var.row / 3); i < ((3 * (var.row / 3)) + 3); i++) {
       for (int j = 3 * (var.col / 3); j < ((3 * (var.col / 3)) + 3); j++) {
-        if (((i != var.row) || (j != var.col)) && (this.getValue(i, j) == v)) {
+        if (((i != var.row) || (j != var.col)) && (this.getValue(i, j) == value)) {
           return false;
         }
       }
@@ -258,9 +254,6 @@ public abstract class SudokuSolver {
     this.grid[(var.row * 9) + var.col] = val;
   }
 
-  // ================================================================================
-  // Other Helper Methods
-  // ================================================================================
   public int getValue(final int row, final int col) {
     return this.grid[(row * 9) + col];
   }
@@ -268,6 +261,7 @@ public abstract class SudokuSolver {
   // ================================================================================
   // String Methods
   // ================================================================================
+  /** Returns row-rasterized string-solution of the sudoku. */
   public String solution() {
     String string = "";
     for (int i = 0; i < 81; i++) {
